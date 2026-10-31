@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-teleop-twist-keyboard ros-humble-teleop-twist-joy ros-humble-joy \
     ros-humble-cv-bridge ros-humble-image-transport \
     ros-humble-ros-gz ros-humble-pointcloud-to-laserscan \
-    ros-humble-foxglove-bridge \
+    ros-humble-foxglove-bridge ros-humble-rtabmap-ros \
     libeigen3-dev libpcl-dev mesa-utils pciutils \
  && rm -rf /var/lib/apt/lists/*
 

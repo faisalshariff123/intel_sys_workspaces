@@ -1,0 +1,77 @@
+## RTAB-Map params for the Intel Sys mecanum rover.
+# Fuses: Unitree L2 3D LiDAR (scan_cloud), RealSense RGB-D camera, and IMU
+# (chassis /imu_raw or LiDAR-internal /lidar/imu, selectable via rtabmap.launch.py).
+#
+# These are a tuned starting point, not a validated final config — ICP on raw
+# 3D LiDAR is sensitive to voxel size / correspondence distance for this specific
+# sensor's range and density, and this hasn't been benchmarked against real rover
+# data yet. Expect to iterate on the Icp/* block especially.
+
+icp_odometry:
+  ros__parameters:
+    # icp_odometry has NO RGB-D subscription — verified against the installed
+    # rtabmap_odom binary (ros2 node info shows only /scan and /scan_cloud as
+    # subscribers, with or without Reg/Strategy or topic remaps set). Odometry
+    # here is LiDAR-only. RGB-D fusion happens one level up, in the main
+    # `rtabmap` node below, for loop closure / mapping — not for real-time
+    # pose tracking. Don't expect the camera to save a bad ICP match here.
+    Reg/Strategy: "1"                # ICP (the only registration this node can do)
+
+    Icp/VoxelSize: "0.05"
+    Icp/PointToPlane: "true"
+    Icp/PointToPlaneK: "20"
+    Icp/PointToPlaneRadius: "0.0"
+    Icp/Iterations: "30"
+    Icp/Epsilon: "0.001"
+    Icp/MaxCorrespondenceDistance: "0.5"   # ~10x voxel size, standard rule of thumb
+    Icp/CorrespondenceRatio: "0.01"        # lower than default 0.1 — this LiDAR's
+                                            # scans are sparser than the dense RGBD
+                                            # clouds rtabmap's defaults assume
+    Icp/MaxTranslation: "1.0"              # reject a frame-to-frame jump bigger than
+    Icp/MaxRotation: "0.78"                # this instead of accepting a bad match
+                                            # (this is what guarded against the
+                                            # runaway drift seen in testing)
+    Icp/Strategy: "1"                      # libpointmatcher
+
+    Odom/Strategy: "0"               # Frame-to-Map (more stable than frame-to-frame)
+    Odom/ResetCountdown: "1"         # auto-reset odometry after N consecutive
+                                      # registration failures instead of just
+                                      # free-running on a bad guess
+
+    frame_id: "base_footprint"
+    publish_tf: true
+    wait_for_transform: 0.2
+    approx_sync: true
+    qos: 2
+
+rtabmap:
+  ros__parameters:
+    frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    map_frame_id: "map"
+    subscribe_depth: true
+    subscribe_rgb: true
+    subscribe_scan_cloud: true
+    approx_sync: true
+    qos_image: 2
+    qos_scan: 2
+
+    Mem/IncrementalMemory: "true"
+    Rtabmap/DetectionRate: "1"       # loop-closure detection rate (Hz)
+
+    Reg/Strategy: "2"                # Vis+ICP — valid here since this node actually
+                                      # subscribes rgb/depth AND scan_cloud (unlike
+                                      # icp_odometry above), so this is where the
+                                      # camera genuinely helps loop closure/mapping
+    RGBD/ProximityBySpace: "true"
+    RGBD/OptimizeFromGraphEnd: "false"
+
+    # Occupancy grid (2D) / 3D map generation. 2D projected grid is always
+    # published on /map; Grid/3D additionally controls whether the internal
+    # representation and /octomap_* topics are a full 3D voxel map or a
+    # ground-projected 2D one. Toggled by rtabmap.launch.py's three_d_map arg.
+    Grid/FromDepth: "false"          # build the grid from the LiDAR cloud, not
+                                      # the camera's depth image (longer range)
+    Grid/CellSize: "0.05"
+    Grid/RangeMax: "20.0"
+    Grid/3D: "true"                  # overridden by launch arg
