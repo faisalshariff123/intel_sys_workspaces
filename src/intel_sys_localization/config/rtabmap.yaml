@@ -1,11 +1,41 @@
 ## RTAB-Map params for the Intel Sys mecanum rover.
 # Fuses: Unitree L2 3D LiDAR (scan_cloud) + RealSense RGB-D camera for loop
-# closure and 2D/3D mapping. Odometry is NOT computed here — it comes from
-# Point-LIO (tightly-coupled LiDAR-inertial, launched via localization.launch.py
-# and pulled in by rtabmap.launch.py). rtabmap consumes Point-LIO's /odom and
-# odom->base_footprint TF. Using rtabmap's own LiDAR-only icp_odometry instead
-# drifts in pitch on this rig (narrow L2 vertical FOV) and tilts the map, which
-# is why that path was removed.
+# closure and 2D/3D mapping. Odometry is normally NOT computed here — by default
+# (odometry:=point_lio) it comes from Point-LIO (tightly-coupled LiDAR-inertial,
+# launched via localization.launch.py), and rtabmap consumes its /odom +
+# odom->base_footprint TF. The icp_odometry block below is only used by the
+# opt-in fallback (odometry:=icp): LiDAR-only ICP, no IMU, drifts in pitch on this
+# rig (narrow L2 vertical FOV) and tilts the map — for quick tests only.
+
+icp_odometry:
+  ros__parameters:
+    # Used ONLY when rtabmap.launch.py is run with odometry:=icp (fallback).
+    # icp_odometry has NO RGB-D subscription — it is LiDAR-only, so the camera
+    # does not assist pose tracking here. Prefer Point-LIO (the default).
+    Reg/Strategy: "1"                # ICP (the only registration this node can do)
+
+    Icp/VoxelSize: "0.05"
+    Icp/PointToPlane: "true"
+    Icp/PointToPlaneK: "20"
+    Icp/PointToPlaneRadius: "0.0"
+    Icp/Iterations: "30"
+    Icp/Epsilon: "0.001"
+    Icp/MaxCorrespondenceDistance: "0.5"   # ~10x voxel size, standard rule of thumb
+    Icp/CorrespondenceRatio: "0.01"        # lower than default 0.1 — this LiDAR's
+                                            # scans are sparser than the dense RGBD
+                                            # clouds rtabmap's defaults assume
+    Icp/MaxTranslation: "1.0"              # reject a frame-to-frame jump bigger than
+    Icp/MaxRotation: "0.78"                # this instead of accepting a bad match
+    Icp/Strategy: "1"                      # libpointmatcher
+
+    Odom/Strategy: "0"               # Frame-to-Map (more stable than frame-to-frame)
+    Odom/ResetCountdown: "1"         # auto-reset after N consecutive failures
+
+    frame_id: "base_footprint"
+    publish_tf: true
+    wait_for_transform: 0.2
+    approx_sync: true
+    qos: 2
 
 rtabmap:
   ros__parameters:
